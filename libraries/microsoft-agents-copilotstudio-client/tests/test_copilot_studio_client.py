@@ -14,6 +14,10 @@ ENVIRONMENT_ID = "A47151CF-4F34-488F-B377-EBE84E17B478"
 class TestCopilotStudioClient:
 
     @pytest.fixture
+    def mock_session(self):
+        return pytest.mock.create_autospec(aiohttp.ClientSession)
+
+    @pytest.fixture
     def client(self):
         return pytest.mock.create_autospec(CopilotClient)
 
