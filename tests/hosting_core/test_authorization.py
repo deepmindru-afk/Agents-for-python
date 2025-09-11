@@ -606,3 +606,21 @@ class TestAuthorization(TestAuthorizationUtils):
             == {}
         )
         OAuthFlow.sign_out.assert_called()  # ignore red squiggly -> mocked
+
+    @pytest.mark.asyncio
+    async def test_continue_invoke_race_condition_protection(
+        self,
+        mocker
+    ):
+        auth = Authorization(storage, connection_manager, auth_handlers)
+
+        auth.begin_or_continue_flow(turn_context, turn_state, auth_handler_id)
+
+        calls = []
+        for i in range(5):
+            calls.append(auth.begin_or_continue_flow(turn_context, turn_state, auth_handler_id))
+
+        responses = await asyncio.gather(*calls)
+
+        assert oauth_flow_class.begin_or_continue_flow.call_count == 1
+        assert user_token_client.user_token.get_token.call_count == 1

@@ -76,6 +76,16 @@ class Authorization:
             Callable[[TurnContext, TurnState, Optional[str]], Awaitable[None]]
         ] = lambda *args: None
 
+        self._dedup_set = set()
+
+    def _dedup_lock(self, token_exchange_id: str) -> bool:
+        """Checks if a token exchange ID is already in use."""
+        if token_exchange_id in self._dedup_set:
+            logger.warning("Duplicate token exchange ID detected: %s", token_exchange_id)
+            return True
+        self._dedup_set.add(token_exchange_id)
+        return False
+
     def _ids_from_context(self, context: TurnContext) -> tuple[str, str]:
         """Checks and returns IDs necessary to load a new or existing flow.
 
@@ -271,7 +281,7 @@ class Authorization:
         context: TurnContext,
         turn_state: TurnState,
         auth_handler_id: str = "",
-    ) -> FlowResponse:
+    ) -> FlowResponse | None:
         """Begins or continues an OAuth flow.
 
         Args:
@@ -280,11 +290,15 @@ class Authorization:
             auth_handler_id: Optional ID of the auth handler to use, defaults to first handler.
 
         Returns:
-            The token response from the OAuth provider.
+            The Flow Response if a flow was processed, None otherwise (in case of deduping)
 
         """
         if not auth_handler_id:
             auth_handler_id = self.resolve_handler().name
+
+        token_exchange_id = context.activity.relates_to?.activity_id  # robrandao : TODO
+        if not self._dedup_lock(context.activity.relates_to?.activity_id or ""):
+            return None
 
         logger.debug("Beginning or continuing OAuth flow")
         async with self.open_flow(context, auth_handler_id) as flow:
