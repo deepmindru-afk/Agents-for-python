@@ -17,6 +17,7 @@ from microsoft_agents.activity import TokenResponse
 from microsoft_agents.hosting.core.connector.client import UserTokenClient
 
 from ...turn_context import TurnContext
+from ...value_lock import SmartValueLock
 from ...oauth import OAuthFlow, FlowResponse, FlowState, FlowStateTag, FlowStorageClient
 from ..state.turn_state import TurnState
 from .auth_handler import AuthHandler
@@ -76,15 +77,12 @@ class Authorization:
             Callable[[TurnContext, TurnState, Optional[str]], Awaitable[None]]
         ] = lambda *args: None
 
-        self._dedup_set = set()
-
-    def _dedup_lock(self, token_exchange_id: str) -> bool:
-        """Checks if a token exchange ID is already in use."""
-        if token_exchange_id in self._dedup_set:
-            logger.warning("Duplicate token exchange ID detected: %s", token_exchange_id)
-            return True
-        self._dedup_set.add(token_exchange_id)
-        return False
+        # clear values older than 2 minutes if we have more than 128 values
+        self._value_lock = SmartValueLock(
+            age_threshold=120,  # 2 minutes,
+            size_threshold=128,  # entries
+            min_cond_release_interval=120,  # 2 minutes
+        )
 
     def _ids_from_context(self, context: TurnContext) -> tuple[str, str]:
         """Checks and returns IDs necessary to load a new or existing flow.
@@ -276,6 +274,12 @@ class Authorization:
                 return flow_state
         return None
 
+    def _is_token_exchange_duplicate(self, activity) -> bool:
+        """Checks if the token exchange request is a duplicate."""
+        if activity.type == "invoke" and activity.name == "signin/tokenExchange":
+            return self._value_lock.acquire(activity.value.get("id"))
+        return False
+
     async def begin_or_continue_flow(
         self,
         context: TurnContext,
@@ -296,8 +300,7 @@ class Authorization:
         if not auth_handler_id:
             auth_handler_id = self.resolve_handler().name
 
-        token_exchange_id = context.activity.relates_to?.activity_id  # robrandao : TODO
-        if not self._dedup_lock(context.activity.relates_to?.activity_id or ""):
+        if self._is_token_exchange_duplicate(context.activity):
             return None
 
         logger.debug("Beginning or continuing OAuth flow")

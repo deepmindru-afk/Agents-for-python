@@ -649,7 +649,7 @@ class AgentApplication(Agent, Generic[StateT]):
         self, context: TurnContext, turn_state: TurnState
     ) -> bool:
         """Intercepts the turn to check for active authentication flows.
-        
+
         Returns: True if the turn was handled via auth, False otherwise.
             If True, a new turn is created
         """
@@ -694,12 +694,16 @@ class AgentApplication(Agent, Generic[StateT]):
 
                 new_flow_state: FlowState = flow_response.flow_state
                 token_response: TokenResponse = flow_response.token_response
-                saved_activity: Activity = new_flow_state.continuation_activity.model_copy()
+                saved_activity: Activity = (
+                    new_flow_state.continuation_activity.model_copy()
+                )
 
                 if token_response:
                     new_context = copy(context)
                     new_context.activity = saved_activity
-                    logger.info("Resending continuation activity %s", saved_activity.text)
+                    logger.info(
+                        "Resending continuation activity %s", saved_activity.text
+                    )
                     await self.on_turn(new_context)
                     await turn_state.save(context)
             return True  # early return from _on_turn
@@ -852,8 +856,9 @@ class AgentApplication(Agent, Generic[StateT]):
                         )
 
                         sign_in_complete = (
-                                flow_response and flow_response.flow_state.tag == FlowStateTag.COMPLETE
-                            )
+                            flow_response
+                            and flow_response.flow_state.tag == FlowStateTag.COMPLETE
+                        )
                         if flow_response:
                             await self._handle_flow_response(context, flow_response)
                             logger.debug(

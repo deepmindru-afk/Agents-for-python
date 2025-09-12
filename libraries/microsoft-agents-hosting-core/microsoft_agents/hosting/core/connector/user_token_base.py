@@ -4,7 +4,7 @@ from typing import Protocol
 from microsoft_agents.activity import (
     TokenResponse,
     TokenStatus,
-    TokenOrSignInResourceResponse
+    TokenOrSignInResourceResponse,
 )
 
 
@@ -18,7 +18,7 @@ class UserTokenBase(Protocol):
         code: str = None,
     ) -> TokenResponse:
         raise NotImplementedError()
-    
+
     @abstractmethod
     async def get_token_or_sign_in_resource(
         self,
@@ -28,7 +28,7 @@ class UserTokenBase(Protocol):
         state: str,
         code: str = "",
         final_redirect: str = "",
-        fwd_url: str = ""
+        fwd_url: str = "",
     ) -> TokenOrSignInResourceResponse:
         raise NotImplementedError()
 

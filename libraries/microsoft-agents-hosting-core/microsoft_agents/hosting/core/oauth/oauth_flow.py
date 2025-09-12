@@ -107,7 +107,7 @@ class OAuthFlow:
     @property
     def flow_state(self) -> FlowState:
         return self._flow_state.model_copy()
-    
+
     def _set_begin_state(self, activity: Activity) -> None:
         self._flow_state.tag = FlowStateTag.BEGIN
         self._flow_state.expiration = (
@@ -119,11 +119,13 @@ class OAuthFlow:
 
     def _set_complete_state(self, token_response: TokenResponse) -> None:
         logger.info(
-                "OAuth flow completed successfully, got TokenResponse: %s",
-                token_response,
-            )
+            "OAuth flow completed successfully, got TokenResponse: %s",
+            token_response,
+        )
         self._flow_state.tag = FlowStateTag.COMPLETE
-        self._flow_state.expiration = datetime.now().timestamp() + self._default_flow_duration
+        self._flow_state.expiration = (
+            datetime.now().timestamp() + self._default_flow_duration
+        )
         self._flow_state.user_token = token_response.token
 
     def _use_attempt(self) -> None:
@@ -213,7 +215,7 @@ class OAuthFlow:
             activity.from_property.id,
             self._abs_oauth_connection_name,
             activity.channel_id,
-            token_exchange_state.get_encoded_state()
+            token_exchange_state.get_encoded_state(),
         )
 
         if res.token_response:
