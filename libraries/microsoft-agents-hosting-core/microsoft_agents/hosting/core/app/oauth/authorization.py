@@ -116,7 +116,7 @@ class Authorization:
             context.adapter.USER_TOKEN_CLIENT_KEY
         )
 
-        # resolve handler id
+        # collect ids
         auth_handler: AuthHandler = self.resolve_handler(auth_handler_id)
         auth_handler_id = auth_handler.name
 
