@@ -90,7 +90,7 @@ class TestValueLock(BaseValueLockTests):
 class TestSmartValueLockBase(BaseValueLockTests):
     def build_lock(self, values: Optional[Iterable[Any]] = None):
         return SmartValueLock(
-            min_value_duration=0.2,
+            min_lock_duration=0.2,
             size_threshold=2,
             min_cond_release_interval=0.1,
             initial_values=set(values) if values else set(),
@@ -101,14 +101,14 @@ class TestSmartValueLockOnly:
     def build_lock(
         self,
         values: Optional[Iterable[Any]] = None,
-        min_value_duration: float = 0.2,
+        min_lock_duration: float = 0.2,
         size_threshold: int = 5,
         min_cond_release_interval: float = 0.1,
     ) -> SmartValueLock:
         if not values:
             values = set()
         lock = SmartValueLock(
-            min_value_duration, size_threshold, min_cond_release_interval
+            min_lock_duration, size_threshold, min_cond_release_interval
         )
         for value in values:
             lock.acquire(value)
@@ -116,14 +116,14 @@ class TestSmartValueLockOnly:
 
     def test_init_empty(self):
         lock = SmartValueLock(
-            min_value_duration=0.2, size_threshold=5, min_cond_release_interval=0.1
+            min_lock_duration=0.2, size_threshold=5, min_cond_release_interval=0.1
         )
         assert lock.size() == 0
         assert lock.release() == {}
 
     def test_conditional_release_nop(self):
         lock = self.build_lock(
-            min_value_duration=0.1, size_threshold=5, min_cond_release_interval=0.1
+            min_lock_duration=0.1, size_threshold=5, min_cond_release_interval=0.1
         )
         lock.acquire(1)
         assert lock.size() == 1
@@ -133,7 +133,7 @@ class TestSmartValueLockOnly:
 
     def test_conditional_release_nop_min_interval_from_init(self):
         lock = self.build_lock(
-            min_value_duration=0.1, size_threshold=1, min_cond_release_interval=0.1
+            min_lock_duration=0.1, size_threshold=1, min_cond_release_interval=0.1
         )
         lock.acquire(1)
         sleep(0.05)
@@ -141,13 +141,13 @@ class TestSmartValueLockOnly:
         assert lock.size() == 2
         assert lock.release() == {1, 2}
 
-    @pytest.mark.parametrize("min_value_duration", [0, 0.01, 0.02])
+    @pytest.mark.parametrize("min_lock_duration", [0, 0.01, 0.02])
     def test_conditional_release_nop_min_interval_from_init_no_min(
-        self, min_value_duration
+        self, min_lock_duration
     ):
-        lock = self.build_lock(min_value_duration=min_value_duration, size_threshold=2)
+        lock = self.build_lock(min_lock_duration=min_lock_duration, size_threshold=2)
         lock.acquire(1)
-        sleep(min_value_duration)
+        sleep(min_lock_duration)
         lock.acquire(2)
         assert lock.size() == 1
         assert lock.release() == {2}
@@ -155,7 +155,7 @@ class TestSmartValueLockOnly:
     @pytest.mark.parametrize("first, second", [(1, 2), (2, 2), (3, 4), ("ab", "ab")])
     def test_conditional_release_nop_min_interval_second(self, first, second):
         lock = self.build_lock(
-            min_value_duration=0.1, size_threshold=1, min_cond_release_interval=0.1
+            min_lock_duration=0.1, size_threshold=1, min_cond_release_interval=0.1
         )
         lock.acquire(first)
         assert lock.size() == 1
@@ -173,7 +173,7 @@ class TestSmartValueLockOnly:
 
     def test_conditional_release_size_thresh(self):
         lock = self.build_lock(
-            min_value_duration=0.1, size_threshold=2, min_cond_release_interval=0.1
+            min_lock_duration=0.1, size_threshold=2, min_cond_release_interval=0.1
         )
         assert lock.acquire("a")
         assert lock.size() == 1
@@ -184,7 +184,7 @@ class TestSmartValueLockOnly:
 
     def test_conditional_release_size_thresh_nop(self):
         lock = self.build_lock(
-            min_value_duration=0.1, size_threshold=10, min_cond_release_interval=0.1
+            min_lock_duration=0.1, size_threshold=10, min_cond_release_interval=0.1
         )
         assert lock.acquire("a")
         assert lock.size() == 1
@@ -194,10 +194,10 @@ class TestSmartValueLockOnly:
         assert lock.size() == 3
         assert lock.release() == {"a", "b", "c"}
 
-    def test_conditional_release_min_value_duration(self):
+    def test_conditional_release_min_lock_duration(self):
 
         lock = self.build_lock(
-            min_value_duration=0.1, size_threshold=5, min_cond_release_interval=0.1
+            min_lock_duration=0.1, size_threshold=5, min_cond_release_interval=0.1
         )
         for i in range(10):
             assert lock.acquire(i)
@@ -219,7 +219,7 @@ class TestSmartValueLockOnly:
         initial_values = {1, 2, 3, 4, 5}
         lock = self.build_lock(
             values=initial_values,
-            min_value_duration=0.1,
+            min_lock_duration=0.1,
             size_threshold=5,
             min_cond_release_interval=0.1,
         )

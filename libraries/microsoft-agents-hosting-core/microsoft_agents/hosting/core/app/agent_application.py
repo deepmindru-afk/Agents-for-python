@@ -454,7 +454,9 @@ class AgentApplication(Agent, Generic[StateT]):
 
         return __call
 
-    def handoff(self, *, auth_handlers: Optional[List[str]] = None) -> Callable[
+    def handoff(
+        self, *, auth_handlers: Optional[List[str]] = None
+    ) -> Callable[
         [Callable[[TurnContext, StateT, str], Awaitable[None]]],
         Callable[[TurnContext, StateT, str], Awaitable[None]],
     ]:
@@ -837,9 +839,41 @@ class AgentApplication(Agent, Generic[StateT]):
                 return False
         return True
 
+    async def _auth_prereqs_met(
+        self, context: TurnContext, state: StateT, route: Route
+    ):
+
+        if not route.auth_handlers:
+            return True
+
+        sign_in_complete = False
+        for auth_handler_id in route.auth_handlers:
+            logger.debug(
+                "Beginning or continuing flow for auth handler %s",
+                auth_handler_id,
+            )
+            flow_response: FlowResponse = await self._auth.begin_or_continue_flow(
+                context, state, auth_handler_id
+            )
+
+            sign_in_complete = (
+                flow_response and flow_response.flow_state.tag == FlowStateTag.COMPLETE
+            )
+            if flow_response:
+                await self._handle_flow_response(context, flow_response)
+                logger.debug(
+                    "Flow response flow_state.tag: %s",
+                    flow_response.flow_state.tag,
+                )
+            if not sign_in_complete:
+                break
+
     async def _on_activity(self, context: TurnContext, state: StateT):
         for route in self._routes:
             if route.selector(context):
+                if self._auth_prereqs_met(context, state, route):
+                    await route.handler(context, state)
+
                 if not route.auth_handlers:
                     await route.handler(context, state)
                 else:

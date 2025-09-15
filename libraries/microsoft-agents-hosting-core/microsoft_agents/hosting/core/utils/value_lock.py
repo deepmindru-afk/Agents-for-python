@@ -1,6 +1,6 @@
 """Synchronization primitives for one-time locking based on a value. Not thread-safe."""
 
-from typing import Any
+from typing import Any, Optional
 from datetime import datetime
 
 
@@ -11,8 +11,8 @@ class ValueLock:
     Caveat: the user of the class can clear the state, which will allow re-acquisition of previously used values.
     """
 
-    def __init__(self, initial_set=None) -> None:
-        self._used_values = initial_set if initial_set is not None else set()
+    def __init__(self, initial_values: Optional[set[Any]] = None) -> None:
+        self._used_values = initial_values if initial_values is not None else set()
 
     def release(self) -> set[Any]:
         """Clears the underlying set."""
@@ -33,26 +33,37 @@ class ValueLock:
         return len(self._used_values)
 
 
+# containment used rather than inheritance because a ConditionalReleaseValueLock's behavior
+# is not a superset of ValueLock's behavior, and is fundamentally different.
 class SmartValueLock:
     """A wrapper around ValueLock that automatically cleans up old entries."""
 
     def __init__(
-        self, age_threshold: int, size_threshold: int, min_cond_release_interval: float
+        self,
+        min_lock_duration: float,
+        size_threshold: int,
+        min_cond_release_interval: float = 0.0,
+        initial_values: Optional[set[Any]] = None,
     ) -> None:
         """
 
         Args:
-            age_threshold: Age in seconds after which a value is considered old and can be removed.
+            min_lock_duration: Minimum duration in seconds that a value must be held before it can be released.
             size_threshold: Number of locked values after which a conditional release can be triggered.
             min_cond_release_interval: Minimum interval in seconds between conditional releases.
         """
-        super().__init__()
         self._added_times = {}
-        self._value_lock = ValueLock()
-        self._last_release_time = 0
-        self._age_threshold = age_threshold
+        self._last_release_time = datetime.now().timestamp()
+        self._min_lock_duration = min_lock_duration
         self._size_threshold = size_threshold
         self._min_cond_release_interval = min_cond_release_interval
+
+        if initial_values:
+            for v in initial_values:
+                self._added_times[v] = self._last_release_time
+            self._value_lock = ValueLock(initial_values)
+        else:
+            self._value_lock = ValueLock()
 
     def release(self) -> set[Any]:
         """Releases all locked values."""
@@ -74,7 +85,7 @@ class SmartValueLock:
         values = self._value_lock.release()
 
         new_values = {
-            v for v in values if (ts - self._added_times[v]) < self._age_threshold
+            v for v in values if (ts - self._added_times[v]) < self._min_lock_duration
         }
         self._value_lock = ValueLock(new_values)
         self._added_times = {v: self._added_times[v] for v in new_values}
@@ -86,3 +97,6 @@ class SmartValueLock:
             self._conditional_release()
             return True
         return False
+
+    def size(self) -> int:
+        return self._value_lock.size()

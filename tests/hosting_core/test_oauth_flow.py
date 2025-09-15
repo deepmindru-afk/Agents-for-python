@@ -8,6 +8,7 @@ from microsoft_agents.activity import (
     TokenExchangeState,
     ConversationReference,
     ChannelAccount,
+    TokenOrSignInResourceResponse,
 )
 from microsoft_agents.hosting.core.oauth import (
     OAuthFlow,
@@ -25,7 +26,6 @@ from .tools.testing_oauth import *
 
 
 class TestOAuthFlowUtils:
-
     def create_user_token_client(self, mocker, get_token_return=None):
 
         user_token_client = mocker.Mock(spec=UserTokenClientBase)
@@ -104,7 +104,6 @@ class TestOAuthFlowUtils:
 
 
 class TestOAuthFlow(TestOAuthFlowUtils):
-
     def test_init_no_user_token_client(self, sample_flow_state):
         with pytest.raises(ValueError):
             OAuthFlow(sample_flow_state, None)
@@ -198,8 +197,16 @@ class TestOAuthFlow(TestOAuthFlowUtils):
         self, mocker, sample_flow_state, user_token_client
     ):
         # setup
+        user_token_client.user_token.get_token_or_sign_in_resource = mocker.AsyncMock(
+            return_value=TokenOrSignInResourceResponse(
+                token_response=TokenResponse(token=RES_TOKEN)
+            )
+        )
+        mocker.patch.object(
+            TokenExchangeState, "get_encoded_state", return_value="encoded_state"
+        )
         flow = OAuthFlow(sample_flow_state, user_token_client)
-        activity = mocker.Mock(spec=Activity)
+        activity = self.create_activity(mocker)
         expected_flow_state = sample_flow_state
         expected_flow_state.user_token = RES_TOKEN
         expected_flow_state.tag = FlowStateTag.COMPLETE
@@ -216,7 +223,7 @@ class TestOAuthFlow(TestOAuthFlowUtils):
         assert response.sign_in_resource is None  # No sign-in resource in this case
         assert response.flow_error_tag == FlowErrorTag.NONE
         assert response.token_response.token == RES_TOKEN
-        user_token_client.user_token.get_token.assert_called_once_with(
+        user_token_client.user_token.get_token_or_sign_in_resource.assert_called_once_with(
             user_id=USER_ID,
             connection_name=ABS_OAUTH_CONNECTION_NAME,
             channel_id=CHANNEL_ID,
@@ -235,13 +242,15 @@ class TestOAuthFlow(TestOAuthFlowUtils):
         )
         dummy_sign_in_resource = SignInResource(
             sign_in_link="https://example.com/signin",
-            token_exchange_state=mocker.Mock(
+            token_exchange_resource=mocker.Mock(
                 TokenExchangeState,
                 get_encoded_state=mocker.Mock(return_value="encoded_state"),
             ),
         )
-        user_token_client.user_token.get_token = mocker.AsyncMock(
-            return_value=TokenResponse()
+        user_token_client.user_token.get_token_or_sign_in_resource = mocker.AsyncMock(
+            return_value=TokenOrSignInResourceResponse(
+                sign_in_resource=dummy_sign_in_resource
+            )
         )
         user_token_client.agent_sign_in.get_sign_in_resource = mocker.AsyncMock(
             return_value=dummy_sign_in_resource

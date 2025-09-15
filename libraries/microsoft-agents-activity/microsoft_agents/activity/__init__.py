@@ -84,6 +84,7 @@ from .sign_in_constants import SignInConstants
 from .sign_in_resource import SignInResource
 from .token_exchange_resource import TokenExchangeResource
 from .token_post_resource import TokenPostResource
+from .token_or_sign_in_resource_response import TokenOrSignInResourceResponse
 
 from .delivery_modes import DeliveryModes
 from .caller_id_constants import CallerIdConstants
@@ -159,6 +160,7 @@ __all__ = [
     "TokenExchangeState",
     "TokenRequest",
     "TokenResponse",
+    "TokenOrSignInResourceResponse",
     "TokenStatus",
     "Transcript",
     "VideoCard",

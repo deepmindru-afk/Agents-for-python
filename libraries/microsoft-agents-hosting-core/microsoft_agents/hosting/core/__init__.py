@@ -91,6 +91,8 @@ from .storage.store_item import StoreItem
 from .storage import Storage
 from .storage.memory_storage import MemoryStorage
 
+# Utils
+from .utils import ValueLock, SmartValueLock
 
 # Define the package's public interface
 __all__ = [
@@ -168,4 +170,6 @@ __all__ = [
     "FlowResponse",
     "FlowStorageClient",
     "OAuthFlow",
+    "ValueLock",
+    "SmartValueLock",
 ]

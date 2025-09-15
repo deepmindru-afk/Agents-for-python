@@ -17,7 +17,7 @@ from microsoft_agents.activity import TokenResponse
 from microsoft_agents.hosting.core.connector.client import UserTokenClient
 
 from ...turn_context import TurnContext
-from ...value_lock import SmartValueLock
+from ...utils.value_lock import SmartValueLock
 from ...oauth import OAuthFlow, FlowResponse, FlowState, FlowStateTag, FlowStorageClient
 from ..state.turn_state import TurnState
 from .auth_handler import AuthHandler
@@ -79,7 +79,7 @@ class Authorization:
 
         # clear values older than 2 minutes if we have more than 128 values
         self._value_lock = SmartValueLock(
-            age_threshold=120,  # 2 minutes,
+            min_lock_duration=120,  # 2 minutes,
             size_threshold=128,  # entries
             min_cond_release_interval=120,  # 2 minutes
         )
@@ -277,7 +277,7 @@ class Authorization:
     def _is_token_exchange_duplicate(self, activity) -> bool:
         """Checks if the token exchange request is a duplicate."""
         if activity.type == "invoke" and activity.name == "signin/tokenExchange":
-            return self._value_lock.acquire(activity.value.get("id"))
+            return not self._value_lock.acquire(activity.value.get("id"))
         return False
 
     async def begin_or_continue_flow(

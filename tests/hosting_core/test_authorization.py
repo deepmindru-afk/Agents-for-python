@@ -1,4 +1,5 @@
 import pytest
+import asyncio
 
 import jwt
 
@@ -29,7 +30,6 @@ from .tools.testing_authorization import (
 
 
 class TestUtils:
-
     def create_context(
         self,
         mocker,
@@ -137,7 +137,6 @@ class TestUtils:
 
 
 class TestAuthorizationUtils(TestUtils):
-
     def create_storage(self):
         return MemoryStorage(STORAGE_INIT_DATA())
 
@@ -165,7 +164,6 @@ class TestAuthorizationUtils(TestUtils):
 
 
 class TestAuthorization(TestAuthorizationUtils):
-
     def test_init_configuration_variants(
         self, storage, connection_manager, auth_handlers
     ):
@@ -516,7 +514,7 @@ class TestAuthorization(TestAuthorizationUtils):
                 flow_state=FlowState(
                     tag=FlowStateTag.FAILURE, auth_handler_id="github"
                 ),
-                flow_state_error=FlowErrorTag.MAGIC_FORMAT,
+                flow_error_tag=FlowErrorTag.MAGIC_FORMAT,
             ),
         )
         context = self.create_context(mocker, "webchat", "Alice")
@@ -533,7 +531,7 @@ class TestAuthorization(TestAuthorizationUtils):
         auth.on_sign_in_success(on_sign_in_success)
         auth.on_sign_in_failure(on_sign_in_failure)
         flow_response = await auth.begin_or_continue_flow(context, None, "github")
-        assert context.dummy_val == "FlowErrorTag.NONE"
+        assert context.dummy_val == "FlowErrorTag.MAGIC_FORMAT"
         assert flow_response.token_response == TokenResponse(token="token")
 
     @pytest.mark.parametrize("auth_handler_id", ["graph", "github"])
@@ -608,19 +606,51 @@ class TestAuthorization(TestAuthorizationUtils):
         OAuthFlow.sign_out.assert_called()  # ignore red squiggly -> mocked
 
     @pytest.mark.asyncio
-    async def test_continue_invoke_race_condition_protection(
+    async def test_continue_invoke_dedup(
         self,
-        mocker
+        mocker,
+        mock_user_token_client_class,
+        mock_oauth_flow_class,
+        turn_context,
+        storage,
+        connection_manager,
+        auth_handlers,
     ):
+        # setup
+        turn_context.activity.value = {"id": "invoke_id_123"}
+        turn_context.activity.type = "invoke"
+        turn_context.activity.name = "signin/tokenExchange"
+        mocker.patch.object(
+            OAuthFlow,
+            "begin_or_continue_flow",
+            return_value=FlowResponse(
+                token_response=TokenResponse(token=RES_TOKEN),
+                flow_state=FlowState(
+                    tag=FlowStateTag.COMPLETE, auth_handler_id="github"
+                ),
+                flow_error_tag=FlowErrorTag.MAGIC_FORMAT,
+            ),
+        )
+
         auth = Authorization(storage, connection_manager, auth_handlers)
 
-        auth.begin_or_continue_flow(turn_context, turn_state, auth_handler_id)
-
+        # test
         calls = []
         for i in range(5):
-            calls.append(auth.begin_or_continue_flow(turn_context, turn_state, auth_handler_id))
+            calls.append(auth.begin_or_continue_flow(turn_context, None, "graph"))
 
         responses = await asyncio.gather(*calls)
 
-        assert oauth_flow_class.begin_or_continue_flow.call_count == 1
-        assert user_token_client.user_token.get_token.call_count == 1
+        # verify
+        assert OAuthFlow.begin_or_continue_flow.call_count == 1
+
+        has_good_value = False
+        none_value_count = 0
+        for response in responses:
+            if response == None:
+                none_value_count += 1
+            elif response.token_response.token == RES_TOKEN:
+                has_good_value = True
+
+        assert has_good_value
+        assert none_value_count == 4
