@@ -174,7 +174,8 @@ class _UserAuthorization(_AuthorizationHandler):
                             channel_data=None,
                         )
                     ],
-                    token_exchange_resource=sign_in_resource.token_exchange_resource,
+                    token_exchange_resource=sign_in_resource.token_exchange_resource \
+                        if self._handler.enable_sso else None,
                     token_post_resource=sign_in_resource.token_post_resource,
                 )
             )

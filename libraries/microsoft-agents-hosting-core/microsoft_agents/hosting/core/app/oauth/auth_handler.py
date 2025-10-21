@@ -70,6 +70,8 @@ class AuthHandler:
             self.scopes = AuthHandler._format_scopes(kwargs.get("SCOPES", ""))
         self._alt_blueprint_name = kwargs.get("ALT_BLUEPRINT_NAME", None)
 
+        self.enable_sso = kwargs.get("ENABLE_SSO", True)
+
     @staticmethod
     def _format_scopes(scopes: str) -> list[str]:
         lst = scopes.strip().split(" ")
