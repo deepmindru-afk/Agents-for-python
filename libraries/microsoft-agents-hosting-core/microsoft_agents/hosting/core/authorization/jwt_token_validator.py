@@ -4,6 +4,7 @@
 import asyncio
 import logging
 import jwt
+from datetime import datetime, timezone
 
 from jwt import PyJWKClient, PyJWK, decode, get_unverified_header
 
@@ -14,6 +15,11 @@ logger = logging.getLogger(__name__)
 
 
 class JwtTokenValidator:
+
+    lock: asyncio.Lock = asyncio.Lock()
+    key_cache: dict = {}
+    last_refresh_time: float = 0.0
+
     def __init__(self, configuration: AgentAuthConfiguration):
         self.configuration = configuration
 
@@ -51,6 +57,19 @@ class JwtTokenValidator:
         )
         jwks_client = PyJWKClient(jwksUri)
 
-        key = await asyncio.to_thread(jwks_client.get_signing_key, header["kid"])
+        key = await JwtTokenValidator.get_key(jwks_client, header["kid"])
 
         return key
+
+    @classmethod
+    async def get_key(cls, jwks_client: PyJWKClient, kid: str) -> PyJWK:
+        now = datetime.now(timezone.utc).timestamp()
+        if kid in cls.key_cache and cls.last_refresh_time + 3600 > now:
+            return cls.key_cache[kid]
+        else:
+            async with cls.lock:
+                if kid in cls.key_cache:
+                    return cls.key_cache[kid]
+                key = await asyncio.to_thread(jwks_client.get_signing_key, kid)
+                cls.key_cache[kid] = key
+                return key
